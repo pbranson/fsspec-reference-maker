@@ -4,7 +4,7 @@ import numpy as np
 import h5py
 import zarr
 from zarr.meta import encode_fill_value, json_dumps
-from numcodecs import Zlib
+from numcodecs import Zlib, Shuffle
 import fsspec
 
 lggr = logging.getLogger('h5-to-zarr')
@@ -98,8 +98,8 @@ class Hdf5ToZarr:
                 source = value.pop("source")["uri"]
                 for k, v in value.items():
                     ref[k] = (source, v["offset"], v["size"])
-            # else:
-            #     ref[key] = value.decode()
+            else:
+                ref[key] = value.decode()
         return ref
 
     def transfer_attrs(self, h5obj: Union[h5py.Dataset, h5py.Group],
@@ -149,7 +149,7 @@ class Hdf5ToZarr:
                     f'{h5obj.shape} {h5obj.dtype} {h5obj.nbytes} bytes>')
                 return
 
-            if (h5obj.scaleoffset or h5obj.fletcher32 or h5obj.shuffle or
+            if (h5obj.scaleoffset or h5obj.fletcher32 or
                     h5obj.compression in ('szip', 'lzf')):
                 raise RuntimeError(
                     f'{h5obj.name} uses unsupported HDF5 filters')
@@ -157,6 +157,10 @@ class Hdf5ToZarr:
                 compression = Zlib(level=h5obj.compression_opts)
             else:
                 compression = None
+
+            filters = []
+            if h5obj.shuffle:
+                filters.append(Shuffle(elementsize=h5obj.dtype.itemsize))
 
             # Get storage info of this HDF5 dataset...
             cinfo = self.storage_info(h5obj)
@@ -169,6 +173,7 @@ class Hdf5ToZarr:
                                             chunks=h5obj.chunks or False,
                                             fill_value=h5obj.fillvalue,
                                             compression=compression,
+                                            filters=filters,
                                             overwrite=True)
             lggr.debug(f'Created Zarr array: {za}')
             self.transfer_attrs(h5obj, za)
