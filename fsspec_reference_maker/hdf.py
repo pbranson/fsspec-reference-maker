@@ -127,12 +127,7 @@ class Hdf5ToZarr:
                 if n == '_FillValue':
                     v = encode_fill_value(v, v.dtype)
                 elif v.size == 1:
-#                     print(v)
-                    v2 = v.flatten()[0]
-                    if isinstance(v2,str):
-                        v = [v2]
-                    else:
-                        v = v2.tolist()
+                    v = v.flatten()[0].tolist()
                 else:
                     v = v.tolist()
             if self._xr and v == 'DIMENSION_SCALE':
